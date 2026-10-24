@@ -329,5 +329,3 @@ Activate your virtual environment before installing. Local mode works without Rs
 | [Integration contract](docs/integration-contract.md) | Connect another application or coding agent to the API |
 | [Scope and research](docs/implementation.md) | Understand implemented capabilities and remaining boundaries |
 | [Verification](docs/verification.md) | Review tested behavior and benchmark limitations |
-
-The repository includes a [GitHub Actions workflow](.github/workflows/test.yml) for tests and Docker smoke checks.
