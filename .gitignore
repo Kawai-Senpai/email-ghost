@@ -1,0 +1,16 @@
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+models/
+calibration/
+corpora/
+config/models.json
+data/
+reports/*
+!reports/.gitkeep
+docs/todo.md
+docs/spamdetector.md

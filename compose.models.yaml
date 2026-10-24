@@ -1,0 +1,7 @@
+services:
+  sandbox:
+    environment:
+      GHOST_MODELS_FILE: /config/models.json
+    volumes:
+      - ./config/models.json:/config/models.json:ro
+      - ./models:/models:ro

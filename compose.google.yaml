@@ -1,0 +1,6 @@
+# Only explicit integration API calls contact Google; no automatic mailbox polling.
+services:
+  sandbox:
+    environment:
+      GHOST_GMAIL_ACCESS_TOKEN: ${GHOST_GMAIL_ACCESS_TOKEN:-}
+      GHOST_POSTMASTER_ACCESS_TOKEN: ${GHOST_POSTMASTER_ACCESS_TOKEN:-}

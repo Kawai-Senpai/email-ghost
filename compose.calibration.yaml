@@ -1,0 +1,9 @@
+# Fit these artifacts first. They are never downloaded or enabled automatically.
+services:
+  sandbox:
+    environment:
+      GHOST_LOCAL_CALIBRATION_FILE: /calibration/local.json
+      GHOST_GMAIL_CALIBRATION_FILE: /calibration/gmail.json
+      GHOST_CALIBRATION_MAX_AGE_DAYS: ${GHOST_CALIBRATION_MAX_AGE_DAYS:-90}
+    volumes:
+      - ./calibration:/calibration:ro

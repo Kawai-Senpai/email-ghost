@@ -1,0 +1,1 @@
+{"subject_equals":"Welcome","text_contains":["Hello Ada"],"attachment_count":0,"required_headers":["date","message-id"],"max_errors":0,"require_rspamd":true,"max_rspamd_score":6}

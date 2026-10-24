@@ -1,0 +1,15 @@
+{
+  "name": "Transactional email contract",
+  "cases": [
+    {
+      "name": "Welcome message",
+      "message": {"subject": "Welcome", "text": "Hello Ada. Your account is ready.", "html": "<h1>Welcome</h1><p>Hello Ada. Your account is ready.</p>"},
+      "assertions": {"subject_equals": "Welcome", "text_contains": ["Hello Ada"], "attachment_count": 0, "max_errors": 0, "required_headers": ["date", "message-id"]}
+    },
+    {
+      "name": "Order confirmation",
+      "message": {"subject": "Order #123 confirmed", "text": "Your order #123 is confirmed."},
+      "assertions": {"subject_equals": "Order #123 confirmed", "text_contains": ["#123"], "attachment_count": 0, "max_errors": 0}
+    }
+  ]
+}

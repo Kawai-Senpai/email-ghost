@@ -1,0 +1,7 @@
+{
+  "models": [
+    {"id":"modernbert","path":"/models/modernbert-spam","spam_label":"spam","device":"auto","dtype":"auto","max_length":4096,"threshold":0.5,"keep_loaded":false},
+    {"id":"roberta","path":"/models/roberta-spam","spam_label":"spam","device":"cpu","dtype":"float32","max_length":512,"threshold":0.5,"keep_loaded":false},
+    {"id":"deberta","path":"/models/deberta-spam","spam_label":"spam","device":"cuda:0","dtype":"float16","max_length":512,"threshold":0.5,"keep_loaded":false}
+  ]
+}

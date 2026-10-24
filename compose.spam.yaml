@@ -1,0 +1,9 @@
+# No browser engines are downloaded. All scanning, model, API and CLI features remain.
+services:
+  sandbox:
+    image: email-ghost-spam:local
+    build:
+      context: .
+      dockerfile: Dockerfile.spam
+    environment:
+      GHOST_RENDER_ENABLED: "0"

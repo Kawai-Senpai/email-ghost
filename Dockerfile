@@ -1,0 +1,17 @@
+FROM mcr.microsoft.com/playwright/python:v1.56.0-noble
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 GHOST_DATA_DIR=/data GHOST_SMTP_HOST=0.0.0.0
+WORKDIR /app
+COPY requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.lock
+COPY pyproject.toml ./
+COPY email_ghost ./email_ghost
+COPY skills ./skills
+COPY docs ./docs
+RUN pip install --no-cache-dir --no-deps . && useradd --create-home --uid 10001 ghost && mkdir /data && chown ghost:ghost /data
+ARG GHOST_WITH_ML=0
+RUN if [ "$GHOST_WITH_ML" = "1" ]; then pip install --no-cache-dir '.[ml]'; fi
+USER ghost
+EXPOSE 8030 1025
+VOLUME ["/data"]
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s CMD python -m email_ghost.healthcheck
+CMD ["email-ghost", "serve", "--host", "0.0.0.0"]

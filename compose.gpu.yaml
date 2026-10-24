@@ -1,0 +1,11 @@
+# Requires NVIDIA Container Toolkit and a CUDA-compatible PyTorch installation.
+# Combine with compose.ml.yaml and optionally compose.spam.yaml.
+services:
+  sandbox:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

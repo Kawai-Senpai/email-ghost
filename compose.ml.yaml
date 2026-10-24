@@ -1,0 +1,12 @@
+# Opt-in content model runtime; train/download model weights separately.
+services:
+  sandbox:
+    build:
+      context: .
+      args:
+        GHOST_WITH_ML: "1"
+    environment:
+      GHOST_MODEL_PATH: /models/spam
+      GHOST_SPAM_LABEL: spam
+    volumes:
+      - ./models:/models:ro
