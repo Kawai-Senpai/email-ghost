@@ -261,11 +261,18 @@ Optional independent transformer classifiers use a local model registry with per
 
 ### Choose optional capabilities
 
+Read [installed pretrained models](docs/pretrained-models.md) for the pinned
+four-classifier download, CPU setup, provenance and actual inference checks.
+The [installer](scripts/install_pretrained_models.py) downloads trained
+checkpoints; examples alone do not install weights. Text classifiers, rendering
+checks and calibrated Gmail probabilities are separate capabilities.
+
 | Compose addition | Enables |
 | --- | --- |
 | `compose.spam.yaml` | Browser-free detector deployment |
 | `compose.ml.yaml` | Optional ML dependencies and a local model mount |
 | `compose.models.yaml` | Multiple independently reported content models |
+| `compose.models-cpu.yaml` | Pinned CPU runtime and installed four-model registry |
 | `compose.gpu.yaml` | NVIDIA GPU device access |
 | `compose.calibration.yaml` | Mounted optional calibration artifacts |
 | `compose.google.yaml` | Operator-provided tokens for explicit read-only Google calls |

@@ -5,6 +5,12 @@ description: Run spam-only testing with Email Ghost, compare independent spam/ha
 
 # Email Ghost spam testing
 
+For the pinned local four-classifier deployment read
+[pretrained models](../../docs/pretrained-models.md). The installer, CPU override,
+checkpoint provenance and all-model assertions are documented there. Verify actual
+availability, preserve disagreement and null calibration, and distinguish these
+text classifiers from image/rendering checks. Examples alone do not install models.
+
 Discover `GET /v1/capabilities` and `GET /v1/models` at the operator's sandbox URL (default `http://127.0.0.1:8030`). The dedicated UI is `/spam`. Full operating instructions are served at `/guides/spam-testing.md`; calibration and model instructions are `/guides/calibration.md` and `/guides/model-training.md`. Read only the guide needed for the task. Exact input schemas are in `/openapi.json`.
 
 For a browser-free standalone deployment from source:

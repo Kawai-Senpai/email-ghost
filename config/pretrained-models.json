@@ -1,0 +1,9 @@
+{
+  "notes": "Exploratory independent text spam classifiers, not Gmail calibration or image classifiers. Publisher metrics are not local validation. Inference uses safetensors with remote code disabled.",
+  "models": [
+    {"id":"modernbert","repository":"sharecreative/modernbert-spam-classifier-feb25","revision":"2e454f0517096096c83158e52303431fbeb8a826","directory":"modernbert-spam","spam_label":"spam","max_length":1024,"license":"not declared by publisher; retain for local evaluation, review before redistribution","limitations":"Publisher's small-corpus evaluation; no local outreach validation."},
+    {"id":"roberta","repository":"mshenoda/roberta-spam","revision":"d0544d2a88175d3f3d3f73acff55d2adf0b9bd58","directory":"roberta-spam","spam_label":"LABEL_1","max_length":512,"license":"MIT","limitations":"Mixed SMS, Telegram and Enron training; card documents class1 as spam. No local validation."},
+    {"id":"deberta","repository":"Avijit070/spam-email-deberta-v3","revision":"f63a2c0cc657a1535192b64a212d34356cd821aa","directory":"deberta-spam","spam_label":"SPAM","max_length":512,"license":"Apache-2.0","limitations":"Sparse publisher card; local validity/performance unestablished. Check actual runtime compatibility."},
+    {"id":"distilbert","repository":"dima806/email-spam-detection-distilbert","revision":"b04b8a7331e354d61a9e308c7e4b7b49899252b3","directory":"distilbert-spam","spam_label":"Spam","max_length":512,"license":"Apache-2.0","limitations":"Publisher's reported evaluation is not local outreach validation; no tokenizer config bundled, must supply verified base-cased tokenizer settings."}
+  ]
+}

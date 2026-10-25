@@ -1,0 +1,15 @@
+# Independent local text classifiers; does not replace Rspamd/Redis or alter data volumes.
+services:
+  sandbox:
+    image: email-ghost:models-cpu
+    build:
+      context: .
+      dockerfile: Dockerfile.ml-cpu
+    environment:
+      GHOST_MODELS_FILE: /config/models.json
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      TOKENIZERS_PARALLELISM: "false"
+    volumes:
+      - ./config/models.json:/config/models.json:ro
+      - ./models:/models:ro

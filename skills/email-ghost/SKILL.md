@@ -5,6 +5,11 @@ description: Test application emails in the local Email Ghost sandbox using SMTP
 
 # Email Ghost sandbox
 
+For installed independent text classifiers, read
+[pretrained models](../../docs/pretrained-models.md). It documents pinned weights,
+CPU runtime, tokenizer compatibility and actual all-model inference checks.
+Text classification does not imply image classification or Gmail calibration.
+
 Start with `GET http://127.0.0.1:8030/v1/capabilities`. Read `/openapi.json` for exact request and response schemas. Read `/healthz` for API readiness; a healthy API does not imply scanner or browser availability. Full source and instructions are in this repository's README.md.
 
 For spam-only use, read `/spam-skill.md` and `/guides/spam-testing.md`; the dedicated page is `/spam`. The browser-free deployment is `docker compose -f compose.yaml -f compose.spam.yaml up -d --build --wait`. It uses the same detector API and does not require screenshots or other studio features.
