@@ -122,6 +122,7 @@ def capabilities():
             "openapi": "/openapi.json", "skill": "/skill.md", "spam_skill": "/spam-skill.md", "profiles": PROFILES,
             "guides": ["/guides/" + name for name in ("spam-testing.md", "model-training.md", "calibration.md", "google-integrations.md", "integration-contract.md")],
             "profile_version": PROFILE_VERSION, "screenshots": {"engines": ["chromium", "firefox", "webkit"], "quick_variants": 16, "full_variants": 112},
+            "assert_saved_audit": True,
             "rspamd_configured": bool(os.getenv("GHOST_RSPAMD_URL")), "content_model_configured": model.configured,
             "content_models": model.describe(), "render_enabled": os.getenv("GHOST_RENDER_ENABLED", "1") == "1",
             "gmail_import_configured": bool(os.getenv("GHOST_GMAIL_ACCESS_TOKEN")),
@@ -346,6 +347,7 @@ async def audit_raw(request: Request, run_id: str = "default"):
 
 
 class Assertions(BaseModel):
+    audit_id: str | None = Field(None, min_length=1, max_length=64)
     subject_equals: str | None = None
     text_contains: list[str] = Field(default_factory=list, max_length=100)
     html_contains: list[str] = Field(default_factory=list, max_length=100)
@@ -365,7 +367,13 @@ class Assertions(BaseModel):
 @app.post("/v1/messages/{ident}/assert")
 async def assert_message(ident: str, expected: Assertions):
     _, parsed = message(ident)
-    report = await run_audit(ident, AuditContext())
+    if expected.audit_id is None:
+        report = await run_audit(ident, AuditContext())
+    else:
+        try:
+            report = store.get_audit(ident, expected.audit_id)
+        except KeyError:
+            raise HTTPException(404, "Audit not found for this message")
     checks = []
 
     def check(name, passed, actual, wanted):
@@ -407,7 +415,7 @@ async def assert_message(ident: str, expected: Assertions):
                 check(name + "_maximum_probability", calibration["probability"] <= maximum, calibration["probability"], maximum)
     passed = all(c["passed"] for c in checks)
     store.event("assertions.completed", ident, passed=passed)
-    return {"passed": passed, "checks": checks, "message_id": ident}
+    return {"passed": passed, "checks": checks, "message_id": ident, "audit_id": report["audit_id"]}
 
 
 class CaptureRequest(BaseModel):

@@ -93,6 +93,15 @@ class Store:
             db.execute("INSERT INTO audits VALUES(?,?,?,?)", (audit_id, ident, datetime.now(timezone.utc).isoformat(), json.dumps(report)))
         return audit_id
 
+    def get_audit(self, ident, audit_id):
+        """Read an immutable audit only when it belongs to this capture."""
+        with self.connect() as db:
+            row = db.execute("SELECT report FROM audits WHERE id=? AND message_id=?",
+                             (audit_id, ident)).fetchone()
+        if row is None:
+            raise KeyError(audit_id)
+        return {**json.loads(row["report"]), "audit_id": audit_id}
+
     def calibration_examples(self, provider=None, limit=10000):
         with self.connect() as db:
             rows = db.execute("""SELECT f.*, m.digest, m.run_id,

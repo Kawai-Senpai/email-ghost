@@ -6,6 +6,13 @@ Local HTTP URL is `http://127.0.0.1:18030`; SMTP is `127.0.0.1:11025`. These are
 
 The existing integration operations are preserved: `/healthz`, `/v1/capabilities`, raw MIME upload to `/v1/messages?run_id=...`, `/v1/messages/{id}/audit`, and `/v1/messages/{id}/assert`. Upload bytes unchanged with `message/rfc822`; isolate every draft/test with a unique run ID. The original MIME is downloadable at `/raw`. No external SMTP relay is implemented.
 
+When capabilities advertises `assert_saved_audit: true`, pass the `audit_id`
+returned by `/audit` in the subsequent `/assert` JSON. Assertions validate that
+exact immutable audit and the captured MIME without rerunning detectors. An
+unknown audit or one from another capture returns 404. The response includes
+`audit_id` and `message_id`; verify both match. Omitting `audit_id` retains the
+original fresh-audit behavior.
+
 New operations and additive report fields:
 
 - `POST /v1/messages/{id}/spam` returns focused spam results. `audit` remains the superset.

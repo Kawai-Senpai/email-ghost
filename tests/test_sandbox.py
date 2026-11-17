@@ -5,6 +5,27 @@ from email_ghost.analysis import audit_local, parse, preview
 from email_ghost.store import Store
 
 
+def test_saved_audit_assertions_do_not_rescan_and_still_check_mime(client, monkeypatch):
+    import importlib
+    module = importlib.import_module("email_ghost.app")
+    ident = client.post("/v1/compose", json={"subject": "Saved", "text": "Exact body"}).json()["id"]
+    report = client.post(f"/v1/messages/{ident}/audit", json={}).json()
+
+    async def no_rescan(*args):
+        raise AssertionError("Saved-audit assertions must not rerun detectors")
+
+    monkeypatch.setattr(module, "run_audit", no_rescan)
+    spec = {"audit_id": report["audit_id"], "subject_equals": "Saved", "text_contains": ["Exact body"]}
+    result = client.post(f"/v1/messages/{ident}/assert", json=spec).json()
+    assert result["passed"] and result["audit_id"] == report["audit_id"]
+    assert not client.post(f"/v1/messages/{ident}/assert", json={**spec, "subject_equals": "Wrong"}).json()["passed"]
+    assert not client.post(f"/v1/messages/{ident}/assert", json={**spec, "require_rspamd": True}).json()["passed"]
+    assert not client.post(f"/v1/messages/{ident}/assert", json={**spec, "required_models": ["missing"]}).json()["passed"]
+    other = client.post("/v1/compose", json={"text": "Other capture"}).json()["id"]
+    assert client.post(f"/v1/messages/{other}/assert", json=spec).status_code == 404
+    assert client.post(f"/v1/messages/{ident}/assert", json={"audit_id": "missing"}).status_code == 404
+
+
 def test_capture_preserves_mime_and_run_isolation(client):
     raw = b"From: a@example.test\r\nTo: b@example.test\r\nSubject: Original\r\n\r\nHello\r\n"
     created = client.post("/v1/messages?run_id=isolated", content=raw)
