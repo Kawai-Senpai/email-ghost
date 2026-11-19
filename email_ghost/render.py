@@ -8,33 +8,58 @@ from .analysis import PROFILE_VERSION, PROFILES, preview
 
 RENDER_LOCK = asyncio.Semaphore(1)
 
+# The phone Gmail Android is shot on: a mid-size Android by default (Pixel 7
+# class, 412 CSS px at 2.625x). Match your own phone with GHOST_PHONE_WIDTH
+# and GHOST_PHONE_SCALE; its font-size setting is GHOST_PHONE_TEXT_ZOOM.
+PHONE = {"width": int(os.getenv("GHOST_PHONE_WIDTH", "412") or 412), "scale": float(os.getenv("GHOST_PHONE_SCALE", "2.625") or 2.625)}
+PHONE_PROFILES = ("gmail-android",)
 
-async def capture(message, directory, engine="chromium", full=False):
+
+async def capture(message, directory, engine="chromium", full=False, inline=None):
     from playwright.async_api import async_playwright
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     variants = []
-    profiles = list(PROFILES) if full else ["browser", "outlook-classic"]
+    # Quick includes Gmail Android: the most common phone client, and the one
+    # where web fonts are dropped and Roboto takes over.
+    profiles = list(PROFILES) if full else ["browser", "gmail-android", "outlook-classic"]
     widths = [390, 700, 1024, 1440] if full else [390, 700]
     async with RENDER_LOCK, async_playwright() as pw:
         executable = os.getenv("GHOST_" + engine.upper() + "_EXECUTABLE")
         browser = await getattr(pw, engine).launch(**({"executable_path": executable} if executable else {}))
         browser_version = browser.version
         try:
-            context = await browser.new_context(java_script_enabled=False, service_workers="block")
-            await context.route("**/*", lambda route: route.abort())
-            page = await context.new_page()
+            pages = {}
+
+            async def page_for(profile):
+                # Gmail Android is shot as a phone: PHONE width at a phone's
+                # pixel density, mobile layout where the engine supports it.
+                kind = "phone" if profile in PHONE_PROFILES else "desktop"
+                if kind not in pages:
+                    options = dict(java_script_enabled=False, service_workers="block")
+                    if kind == "phone":
+                        options.update(viewport={"width": PHONE["width"], "height": 900}, device_scale_factor=PHONE["scale"])
+                        if engine != "firefox":  # Firefox has no mobile emulation in Playwright
+                            options.update(is_mobile=True, has_touch=True)
+                    context = await browser.new_context(**options)
+                    await context.route("**/*", lambda route: route.abort())
+                    pages[kind] = await context.new_page()
+                return pages[kind]
+
             for profile in profiles:
-                for width in widths:
+                page = await page_for(profile)
+                for width in ([PHONE["width"]] if profile in PHONE_PROFILES else widths):
                     for dark in (False, True):
                         for fallback in (False, True):
                             name = f"{profile}-{width}-{'dark' if dark else 'light'}-{'fallback' if fallback else 'original'}.png"
                             await page.set_viewport_size({"width": width, "height": 900})
                             await page.emulate_media(color_scheme="dark" if dark else "light", reduced_motion="reduce")
-                            await page.set_content(preview(message, profile, dark, fallback), wait_until="load", timeout=10000)
+                            await page.set_content(preview(message, profile, dark, fallback, inline), wait_until="load", timeout=10000)
                             # Bound malicious or accidentally enormous email layouts.
-                            height = min(12000, max(900, await page.locator("body").evaluate("el => el.scrollHeight")))
-                            await page.screenshot(path=str(directory / name), clip={"x": 0, "y": 0, "width": width, "height": height}, timeout=15000)
+                            height = min(12000, max(900, await page.locator("html").evaluate("el => Math.max(el.scrollHeight, document.body.scrollHeight)")))
+                            # full_page lets the clip reach below the viewport; on a
+                            # mobile context a plain clip stopped at the first 900 px.
+                            await page.screenshot(path=str(directory / name), full_page=True, clip={"x": 0, "y": 0, "width": width, "height": height}, timeout=15000)
                             variants.append({"file": name, "profile": profile, "width": width, "dark": dark,
                                              "fallback_fonts": fallback, "height": height, "max_height": 12000})
         finally:

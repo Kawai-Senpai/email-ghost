@@ -293,7 +293,22 @@ Read-only Gmail observations and Postmaster v2 compliance/statistics adapters ar
 
 ## Rendering and regression
 
-Quick captures cover 2 profiles × 2 widths × 2 color modes × 2 font modes = 16 PNGs. Full captures cover 7 profiles × 4 widths × 2 color modes × 2 font modes = 112 PNGs per engine. Chromium, Firefox, and WebKit ship in the Docker image. Each capture stores a manifest and standalone HTML gallery; pages are capped at 12,000 pixels high.
+Quick captures cover browser and Outlook Classic at 2 widths, plus Gmail Android on a phone, × 2 color modes × 2 font modes = 20 PNGs. Full captures cover 6 profiles × 4 widths plus Gmail Android on a phone, × 2 color modes × 2 font modes = 100 PNGs per engine.
+
+The Gmail profiles model what Gmail does to fonts: `@font-face` and `@import` are removed (Gmail loads no web fonts) and every `font-family` stack is resolved to the face the app ends on. Gmail Android resolves sans stacks to Roboto (installed in the image), Gmail iOS to Helvetica, and Gmail web to Arial. Gmail Android is shot as a 412 px phone at 2.625x pixel density, with mobile emulation in Chromium and WebKit. Inline `cid:` images are shown from the message's own MIME parts; remote images stay blocked.
+
+### Match your own phone
+
+Gmail Android depends on the phone, so the `gmail-android` profile is tunable through `.env` (see `.env.example`):
+
+| Setting | What it models |
+| --- | --- |
+| `GHOST_PHONE_WIDTH`, `GHOST_PHONE_SCALE` | The screen in CSS px and its pixel density |
+| `GHOST_PHONE_MARGIN` | Gmail's own frame around the message, in px |
+| `GHOST_PHONE_TEXT_ZOOM` | The phone's font-size setting, in percent; Gmail scales email text by it, not the layout |
+| `GHOST_PHONE_WEIGHT_SHIFT` | Added to every font weight; some phones draw the system face a step lighter than declared (`-100` turns 400 into Roboto Light) |
+
+To calibrate, send an email you also have a real Gmail screenshot of, then adjust until line breaks and the left edges of the frame, card and text match. A calibration against a 1080p Android phone landed on 393 px, 2.75x, a 24 px frame, 106% text and a weight shift of -100: at that setting the sandbox matched 15 of 17 sampled line breaks, the frame and card edges within 0.3% of the screen width, and the thin body text of the real screenshot. Chromium, Firefox, and WebKit ship in the Docker image. Each capture stores a manifest and standalone HTML gallery; pages are capped at 12,000 pixels high.
 
 The browser baseline is real browser rendering of sanitized HTML. Client profile names are approximations: Outlook Classic strips selected unsupported inline declarations as a stress test; other profiles use the same safe browser rendering. Dark mode changes the browser media setting and base palette, not Gmail's private recoloring. Remote images, CID images, fonts, stylesheets, navigation, scripts, and frames are blocked. This deliberately sacrifices image fidelity for isolation. Compare actual Gmail, Apple Mail, or Word-based Outlook separately before final delivery.
 

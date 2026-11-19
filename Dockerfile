@@ -3,6 +3,9 @@ ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 GHOST_DATA_DIR=/data GHOST_SMTP
 WORKDIR /app
 COPY requirements.lock ./
 RUN pip install --no-cache-dir -r requirements.lock
+# Roboto: what Gmail on Android falls back to for every sans stack, so the
+# gmail-android profile renders with the face a phone actually shows.
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-roboto && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml ./
 COPY email_ghost ./email_ghost
 COPY skills ./skills

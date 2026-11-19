@@ -83,6 +83,35 @@ def test_preview_removes_active_content_and_network_sources(client):
     assert client.get(f"/v1/messages/{ident}/preview?profile=made-up").status_code == 422
 
 
+def test_gmail_profiles_drop_web_fonts_and_resolve_stacks():
+    from email_ghost.analysis import gmail_css
+    css = "@font-face{font-family:'Brand';src:url(x.woff2)} @import url(y.css); p{font-family:'Brand', 'Helvetica Neue', Arial, sans-serif;font-weight:400}"
+    android = gmail_css(css, "gmail-android")
+    assert "@font-face" not in android and "@import" not in android
+    assert "font-family:Roboto, sans-serif" in android and "font-weight:400" in android
+    assert "Arial, Helvetica" in gmail_css("p{font-family:'Brand', sans-serif}", "gmail-web")
+    assert "monospace" in gmail_css("code{font-family:'JetBrains Mono', Menlo, monospace}", "gmail-android")
+    assert "serif" in gmail_css("h1{font-family:Georgia, serif}", "gmail-android")
+    html = '<html><head><style>@font-face{font-family:B;src:url(f)} .t{font-family:B, Arial}</style></head><body><p style="font-family:B, Arial">Hi</p></body></html>'
+    page = preview({"html": html, "text": ""}, "gmail-android")
+    assert "@font-face" not in page and "font-family:Roboto, sans-serif" in page
+    assert "@font-face" in preview({"html": html, "text": ""}, "browser")  # other profiles untouched
+
+
+def test_preview_shows_the_messages_own_cid_images_only():
+    from email_ghost.analysis import inline_images
+    msg = EmailMessage()
+    msg["Subject"] = "Inline"
+    msg.set_content("x")
+    msg.add_alternative('<img src="cid:boo@x" alt="Boo"><img src="https://tracker.example/p.png" alt="">', subtype="html")
+    msg.get_payload()[1].add_related(b"\x89PNG\r\n\x1a\nfake", "image", "png", cid="<boo@x>")
+    raw = msg.as_bytes()
+    found = inline_images(raw)
+    assert list(found) == ["boo@x"] and found["boo@x"].startswith("data:image/png;base64,")
+    page = preview(parse(raw), "gmail-android", inline=found)
+    assert 'src="data:image/png;base64,' in page and "tracker.example" not in page
+
+
 def test_attachment_exact_bytes_and_download_safety(client):
     msg = EmailMessage()
     msg["Subject"] = "File"

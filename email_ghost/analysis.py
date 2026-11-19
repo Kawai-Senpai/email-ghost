@@ -1,6 +1,7 @@
 """Evidence-based local checks. Scores are never marketed as probabilities."""
 import hashlib
 import ipaddress
+import os
 import re
 from email import policy
 from email.parser import BytesParser
@@ -8,7 +9,7 @@ from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
 
-PROFILE_VERSION = "2026-10-24.1"
+PROFILE_VERSION = "2026-11-19.1"
 PROFILES = {
     "browser": "Browser baseline",
     "gmail-web": "Gmail web approximation",
@@ -53,6 +54,27 @@ def parse(raw):
             "to": str(msg.get("To", "")), "headers": list(msg.raw_items()),
             "html": source, "text": "\n".join(plain), "visible_text": visible,
             "attachments": attachments, "mime_defects": sorted(set(defects))}
+
+
+INLINE_IMAGE_MAX = 2 * 1024 * 1024
+INLINE_IMAGE_TYPES = ("image/png", "image/jpeg", "image/gif", "image/webp")
+
+
+def inline_images(raw):
+    """The message's own Content-ID images as data URIs, so a preview shows
+    what a client shows for cid: references without loading anything remote.
+    Raster types only, each capped; anything else stays blank."""
+    import base64
+    msg = BytesParser(policy=policy.default).parsebytes(raw)
+    found = {}
+    for part in msg.walk():
+        cid = (part.get("Content-ID") or "").strip().strip("<>")
+        if not cid or part.is_multipart() or part.get_content_type() not in INLINE_IMAGE_TYPES:
+            continue
+        payload = part.get_payload(decode=True) or b""
+        if 0 < len(payload) <= INLINE_IMAGE_MAX:
+            found[cid] = "data:" + part.get_content_type() + ";base64," + base64.b64encode(payload).decode()
+    return found
 
 
 def attachment(raw, index):
@@ -179,25 +201,126 @@ def audit_local(message):
             "summary": {level: sum(f["severity"] == level for f in findings) for level in ("error", "warning", "info")}}
 
 
-def preview(message, profile="browser", dark=False, fallback=False):
-    """Sanitize and approximate profiles; CSP and network denial enforce isolation."""
+# How each Gmail app resolves a font-family stack. Gmail removes @font-face
+# and remote stylesheets, so web fonts never load; a family the device lacks
+# is skipped and the stack ends on the platform face. Android aliases arial,
+# helvetica, verdana and tahoma to sans-serif, which is Roboto, so any sans
+# stack lands on Roboto, and Roboto at weight 400 reads lighter than most
+# brand sans faces. Approximations of documented behaviour, not Google's
+# sanitizer.
+GMAIL_FONTS = {
+    "gmail-android": {"sans": "Roboto, sans-serif", "serif": "'Noto Serif', serif", "mono": "'Droid Sans Mono', 'DejaVu Sans Mono', monospace"},
+    "gmail-ios": {"sans": "Helvetica, Arial, sans-serif", "serif": "Georgia, serif", "mono": "Menlo, Courier, monospace"},
+    "gmail-web": {"sans": "Arial, Helvetica, sans-serif", "serif": "'Times New Roman', serif", "mono": "'Courier New', monospace"},
+}
+_FONT_DECL = re.compile(r"(font-family\s*:\s*)([^;}\"]+)", re.I)
+
+# The phone the gmail-android profile models, read once from the environment
+# (calibrate against a real screenshot: see docs).
+#   GHOST_PHONE_TEXT_ZOOM    the phone's font-size setting in percent; Gmail
+#                            Android scales email text by it, not the layout
+#   GHOST_PHONE_MARGIN       px of Gmail's own frame around the message
+#   GHOST_PHONE_WEIGHT_SHIFT added to every font weight; some phones draw the
+#                            system face a step lighter than declared (-100
+#                            turns 400 into Roboto Light)
+def _env_int(name, default, low, high):
+    try:
+        return max(low, min(high, int(os.getenv(name, "") or default)))
+    except ValueError:
+        return default
+
+
+PHONE_TEXT_ZOOM = _env_int("GHOST_PHONE_TEXT_ZOOM", 100, 50, 200)
+PHONE_MARGIN = _env_int("GHOST_PHONE_MARGIN", 16, 0, 64)
+PHONE_WEIGHT_SHIFT = _env_int("GHOST_PHONE_WEIGHT_SHIFT", 0, -300, 300)
+_WEIGHT = re.compile(r"(font-weight\s*:\s*)(\d{3}|bold|normal|bolder|lighter)", re.I)
+_NAMED_WEIGHT = {"normal": 400, "bold": 700, "bolder": 700, "lighter": 300}
+
+
+def _shift_weights(css, shift):
+    def one(m):
+        raw = m.group(2).lower()
+        value = _NAMED_WEIGHT.get(raw) or int(raw)
+        return m.group(1) + str(max(100, min(900, value + shift)))
+    return _WEIGHT.sub(one, css)
+
+
+def _gmail_family(stack, fonts):
+    if re.search(r"mono|courier|consolas|menlo", stack, re.I):
+        return fonts["mono"]
+    if re.search(r"(?<!sans-)serif|georgia|times", stack, re.I) and not re.search(r"sans-serif", stack, re.I):
+        return fonts["serif"]
+    return fonts["sans"]
+
+
+def gmail_css(css, profile):
+    """CSS as a Gmail app would apply it: no web fonts, families resolved."""
+    fonts = GMAIL_FONTS[profile]
+    css = re.sub(r"@font-face\s*\{[^}]*\}", "", css, flags=re.I)
+    css = re.sub(r"@import[^;]*;", "", css, flags=re.I)
+    if profile == "gmail-android" and PHONE_WEIGHT_SHIFT:
+        css = _shift_weights(css, PHONE_WEIGHT_SHIFT)
+    return _FONT_DECL.sub(lambda m: m.group(1) + _gmail_family(m.group(2), fonts), css)
+
+
+def preview(message, profile="browser", dark=False, fallback=False, inline=None):
+    """Sanitize and approximate profiles; CSP and network denial enforce isolation.
+
+    inline maps Content-IDs to data URIs (inline_images): cid: images are the
+    message's own bytes, so they are shown; every other source is removed.
+    """
     soup = BeautifulSoup(message["html"] or "<pre></pre>", "html.parser")
     if not message["html"]:
         soup.pre.string = message["text"]
     for node in soup(["script", "iframe", "object", "embed", "form", "input", "button", "meta", "base", "link", "svg", "math", "video", "audio"]):
         node.decompose()
+    gmail = profile in GMAIL_FONTS
+    if gmail:
+        for node in soup.find_all("style"):
+            node.string = gmail_css(node.get_text(), profile)
     for node in soup.find_all(True):
         for attr in list(node.attrs):
             if attr.lower().startswith("on") or attr.lower() in ("srcdoc", "srcset", "action", "formaction", "background", "ping"):
                 del node[attr]
+        own = None
+        if node.name == "img" and inline and str(node.get("src", "")).lower().startswith("cid:"):
+            own = inline.get(str(node["src"])[4:].strip().strip("<>"))
         for attr in ("href", "src"):
             if node.has_attr(attr):
                 # No navigation or remote loading, including encoded protocol tricks.
                 del node[attr]
+        if own:
+            node["src"] = own
         if profile == "outlook-classic" and node.get("style"):
             node["style"] = re.sub(r"(?:display\s*:\s*(?:flex|grid)|border-radius\s*:[^;]+|box-shadow\s*:[^;]+|position\s*:[^;]+);?", "", node["style"], flags=re.I)
+        if gmail and node.get("style"):
+            node["style"] = gmail_css(node["style"], profile)
+        if inline and node.get("style") and "cid:" in node["style"].lower():
+            # Background images that point at the message's own parts.
+            node["style"] = re.sub(r"url\(\s*['\"]?cid:([^'\")\s]+)['\"]?\s*\)",
+                                   lambda m: "url('" + inline[m.group(1).strip("<>")] + "')" if m.group(1).strip("<>") in inline else "none",
+                                   node["style"], flags=re.I)
     extra = "*{font-family:Arial,sans-serif!important}" if fallback else ""
+    if gmail and not fallback:
+        # Text with no family of its own gets the app's default face.
+        extra += "body{font-family:" + GMAIL_FONTS[profile]["sans"] + "}"
+        if profile == "gmail-android" and PHONE_WEIGHT_SHIFT:
+            # Elements whose weight comes from the browser's defaults.
+            regular, bold = (max(100, min(900, w + PHONE_WEIGHT_SHIFT)) for w in (400, 700))
+            extra += f"body{{font-weight:{regular}}}b,strong,h1,h2,h3,h4,h5,h6,th{{font-weight:{bold}}}"
     if dark:
         extra += "html{background:#151923;color:#eee}body{background:#151923;color:#eee}"
     csp = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; base-uri 'none'; form-action 'none'"
-    return '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="' + csp + '"><style>body{margin:16px;overflow-wrap:anywhere}img{max-width:100%}' + extra + '</style></head><body>' + str(soup) + '</body></html>'
+    # The viewport meta matters on phone captures: without it mobile Chrome
+    # lays the page out at 980 px and inflates some text, which no mail app
+    # does. Gmail Android fits the email to the screen with a narrow frame.
+    # Gmail Android honours the phone's font-size setting (a text zoom that
+    # scales type, not layout); GHOST_PHONE_TEXT_ZOOM sets it, in percent.
+    phone = profile == "gmail-android"
+    zoom = str(PHONE_TEXT_ZOOM if phone else 100) + "%"
+    # Gmail's frame sits outside the message, so it is a wrapper the email's
+    # own <body style="margin:0"> cannot cancel (it merges into this body).
+    frame = '<div style="padding:0 ' + str(PHONE_MARGIN) + 'px">' if phone else "<div>"
+    return ('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">'
+            '<meta http-equiv="Content-Security-Policy" content="' + csp + '"><style>html{-webkit-text-size-adjust:' + zoom + ';text-size-adjust:' + zoom + '}'
+            'body{margin:' + ("0" if phone else "16px") + ';overflow-wrap:break-word}img{max-width:100%}' + extra + '</style></head><body>' + frame + str(soup) + '</div></body></html>')

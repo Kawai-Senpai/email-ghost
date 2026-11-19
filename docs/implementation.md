@@ -2,7 +2,7 @@
 
 The original todo and spamdetector documents are research notes, including descriptions of archives that are not present in this repository. This implementation starts from those notes, not an existing starter application.
 
-Implemented: local SMTP capture with exact MIME download, run-scoped inbox, MIME/attachment inspection, local message/security/accessibility/compatibility audits, Rspamd HTTP scanning with Redis persistence, optional locally installed transformer inference and sentence deletion, sanitized responsive previews, three browser screenshot engines, 16/112 variation matrices, persisted galleries, pixel diffs, assertions, feedback provenance, audit events, CLI, OpenAPI discovery, dashboard, Docker image/Compose and an agent skill.
+Implemented: local SMTP capture with exact MIME download, run-scoped inbox, MIME/attachment inspection, local message/security/accessibility/compatibility audits, Rspamd HTTP scanning with Redis persistence, optional locally installed transformer inference and sentence deletion, sanitized responsive previews, three browser screenshot engines, 20/100 variation matrices (Gmail profiles drop web fonts and resolve stacks per app; Gmail Android shot as a phone with Roboto; inline cid: images shown), persisted galleries, pixel diffs, assertions, feedback provenance, audit events, CLI, OpenAPI discovery, dashboard, Docker image/Compose and an agent skill.
 
 The optional `train-model` workflow fine-tunes a binary transformer classifier and records validation metrics, source digests, and leakage checks. This workflow is implemented, but no authorized training corpus or trained spam weights are bundled, and no full transformer training run was performed during core verification.
 

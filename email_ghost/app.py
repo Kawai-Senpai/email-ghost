@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
-from .analysis import PROFILE_VERSION, PROFILES, attachment, audit_local, parse, preview
+from .analysis import PROFILE_VERSION, PROFILES, attachment, audit_local, inline_images, parse, preview
 from .engines import scan_rspamd, learn_rspamd, authentication_from_symbols, scanner_has_result
 from .models import ModelRegistry, hardware
 from .calibration import estimate, describe_calibration
@@ -121,7 +121,7 @@ def capabilities():
             "public_smtp_port": int(os.getenv("GHOST_PUBLIC_SMTP_PORT", os.getenv("GHOST_SMTP_PORT", "1025"))),
             "openapi": "/openapi.json", "skill": "/skill.md", "spam_skill": "/spam-skill.md", "profiles": PROFILES,
             "guides": ["/guides/" + name for name in ("spam-testing.md", "model-training.md", "calibration.md", "google-integrations.md", "integration-contract.md")],
-            "profile_version": PROFILE_VERSION, "screenshots": {"engines": ["chromium", "firefox", "webkit"], "quick_variants": 16, "full_variants": 112},
+            "profile_version": PROFILE_VERSION, "screenshots": {"engines": ["chromium", "firefox", "webkit"], "quick_variants": 20, "full_variants": 100},
             "assert_saved_audit": True,
             "rspamd_configured": bool(os.getenv("GHOST_RSPAMD_URL")), "content_model_configured": model.configured,
             "content_models": model.describe(), "render_enabled": os.getenv("GHOST_RENDER_ENABLED", "1") == "1",
@@ -230,8 +230,8 @@ def download_attachment(ident: str, index: int):
 def get_preview(ident: str, profile: str = "browser", dark: bool = False, fallback: bool = False):
     if profile not in PROFILES:
         raise HTTPException(422, "Unknown profile")
-    _, parsed = message(ident)
-    return HTMLResponse(preview(parsed, profile, dark, fallback), headers={
+    row, parsed = message(ident)
+    return HTMLResponse(preview(parsed, profile, dark, fallback, inline_images(row["raw"])), headers={
         "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"})
 
 
@@ -429,11 +429,11 @@ def save_job(job):
     (directory / "job.json").write_text(json.dumps(job), encoding="utf-8")
 
 
-async def capture_job(job, parsed, body):
+async def capture_job(job, parsed, body, inline=None):
     job["status"] = "running"
     save_job(job)
     try:
-        job["manifest"] = await capture(parsed, DATA / "captures" / job["id"], body.engine, body.matrix == "full")
+        job["manifest"] = await capture(parsed, DATA / "captures" / job["id"], body.engine, body.matrix == "full", inline)
         job["status"] = "completed"
     except Exception as exc:
         job.update(status="failed", error=str(exc))
@@ -448,11 +448,12 @@ async def create_capture(ident: str, body: CaptureRequest = CaptureRequest()):
         raise HTTPException(503, "Rendering disabled in spam-only mode; use the full sandbox image for screenshots")
     if sum(j["status"] in ("queued", "running") for j in jobs.values()) >= 4:
         raise HTTPException(429, "Capture queue full; poll existing jobs")
-    _, parsed = message(ident)
+    row, parsed = message(ident)
+    inline = inline_images(row["raw"])
     job = {"id": uuid.uuid4().hex, "message_id": ident, "status": "queued", "engine": body.engine, "matrix": body.matrix}
     jobs[job["id"]] = job
     save_job(job)
-    task = asyncio.create_task(capture_job(job, parsed, body))
+    task = asyncio.create_task(capture_job(job, parsed, body, inline))
     tasks.add(task)
     task.add_done_callback(tasks.discard)
     return {**job, "poll_url": "/v1/captures/" + job["id"]}
